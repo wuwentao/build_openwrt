@@ -7,14 +7,7 @@
 
 name: Build OpenWrt
 
-on:
-  repository_dispatch:
-  workflow_dispatch:
-    inputs:
-      ssh:
-        description: 'SSH connection to Actions'
-        required: false
-        default: 'false'
+on: push
 
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
