@@ -7,7 +7,10 @@
 
 name: Build OpenWrt
 
-on: push
+on: 
+  push:
+  repository_dispatch:
+  workflow_dispatch:
 
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
@@ -47,7 +50,7 @@ jobs:
       working-directory: /workdir
       run: |
         df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: Load custom feeds
@@ -58,6 +61,7 @@ jobs:
         cd openwrt
         cat feeds.conf.default
         echo "add custom feeds"
+        echo "src-git ssrp https://github.com/fw876/helloworld.git" >> ./feeds.conf.default
         sed -i '$a src-git kenzo https://github.com/kenzok8/openwrt-packages' feeds.conf.default
         sed -i '$a src-git small https://github.com/kenzok8/small' feeds.conf.default
         echo "show current custom feeds"
@@ -67,7 +71,22 @@ jobs:
       run: cd openwrt && ./scripts/feeds update -a
 
     - name: Install feeds
-      run: cd openwrt && ./scripts/feeds install -a
+      run: |
+        cd openwrt && ./scripts/feeds install -a. && ./scripts/feeds install -a
+        
+    - name: Import external feeds - passwall
+      working-directory: ./openwrt
+      run: |
+        git clone https://github.com/xiaorouji/openwrt-passwall.git package/lienol
+    #    git clone "your_github_link" package/"your_folder_name"  
+    # moddns v5
+    #  git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
+    # git clone https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
+
+    #- name: Import external feeds - JerryKuKu Argon
+    #  working-directory: ./openwrt
+    #  run: |
+    #    git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon-jerrykuku
 
     - name: Load custom configuration
       run: |
@@ -78,17 +97,20 @@ jobs:
         ls 
         echo  $GITHUB_WORKSPACE
         cd openwrt
+        # 1. Modify default IP
         cat package/base-files/files/bin/config_generate
         sed -i 's/192.168.1.1/192.168.2.2/g' package/base-files/files/bin/config_generate
         echo "current config"
         cat package/base-files/files/bin/config_generate
+        # 2. Clear the login password
+        sed -i 's/$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.//g' openwrt/package/lean/default-settings/files/zzz-default-settings
 
     - name: Download package
       id: package
       run: |
         cd openwrt
         make defconfig
-        make download -j8
+        make download -j$(nproc)
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
